@@ -36,7 +36,7 @@ class Detector(object):
 
         self.car_index = 0
         self.waypoints = None
-        self.stop_lines = []
+        self.stop_lines = None
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -75,7 +75,7 @@ class Detector(object):
             self.state_count += 1
 
     def pose_cb(self, msg):
-        if self.waypoints is None:
+        if self.waypoints is None or self.stop_lines is None or len(self.stop_lines) == 0:
             return
 
         if self.car_index > self.stop_lines[-1]:
@@ -99,11 +99,15 @@ class Detector(object):
 
         config_string = rospy.get_param('/traffic_light_config')
 
+        rospy.loginfo('tl: got config_string: \n' + config_string)
+
         self.stop_lines = []
         for position in yaml.load(config_string)['stop_line_positions']:
             index = self.get_closest_waypoint(Point(position[0], position[1]))
             self.stop_lines.append(index)
         self.stop_lines.sort()
+
+        rospy.loginfo('tl: loaded stop_lines: ' + str(self.stop_lines))
 
     def get_closest_waypoint(self, point):
         """Identifies the closest path waypoint to the given position
