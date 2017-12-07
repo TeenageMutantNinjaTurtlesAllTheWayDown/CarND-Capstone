@@ -48,6 +48,7 @@ class WaypointUpdater(object):
         GO = 1
 
     def __init__(self):
+        rospy.logdebug('Starting up node...');
         rospy.init_node('waypoint_updater', log_level=rospy.DEBUG)
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
@@ -70,6 +71,7 @@ class WaypointUpdater(object):
 
         self.state = WaypointUpdater.State.STOP;
 
+        rospy.logdebug('Fully initialized, about to spin');
         rospy.spin()
 
     def update_state(self, distanceToLight):
@@ -93,7 +95,8 @@ class WaypointUpdater(object):
                 self.state = WaypointUpdater.State.GO;
 
         else:
-            assert(False); # Unknown state
+            rospy.logerr('Unexpected state {}, resetting to STOP'.format (self.state))
+            self.state = WaypointUpdater.State.STOP;
 
     def execute_state(self, lane, numwpts):
         if (self.state == WaypointUpdater.State.GO):
@@ -134,6 +137,10 @@ class WaypointUpdater(object):
         lane.header = msg.header
 
         startwpindex = self.find_closest_waypoint(self.base_waypoints, msg.pose);
+
+        if (startwpindex < 0):
+            rospy.logerr('pose_cb: start index invalid');
+            return;
 
         for i in range (LOOKAHEAD_WPS):
             lane.waypoints.append (self.base_waypoints[(startwpindex + i) % len(self.base_waypoints)]);
@@ -237,7 +244,8 @@ class WaypointUpdater(object):
             closestDistSquared = testDistSquared;
             closestIndex = i;
 
-        assert(closestIndex >= 0);
+        if (closestIndex < 0):
+            rospy.logerr('find_closest_waypoint: no waypoint could be found');
 
         return closestIndex;
 
