@@ -15,7 +15,7 @@ from object_detection.utils import label_map_util  # isort:skip
 
 THRESHOLD = 0.5
 MODEL_URL = 'https://github.com/TeenageMutantNinjaTurtlesAllTheWayDown/CarND-Capstone/releases/download/model/model.tar'
-MODEL_SHA256 = '02da06bf05e1d38a50b2052a5518d78a7c9f161f72b912be9d42186fef033853'
+MODEL_SHA256 = '255bdda11f7fe7f72340bfec0ce3fc2db7f6d941368b78281b64ce2420142a0d'
 
 
 def download_model(variant):
