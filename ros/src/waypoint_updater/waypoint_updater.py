@@ -9,6 +9,8 @@ from enum import Enum
 
 import math
 
+from threading import Lock
+
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
 
@@ -51,12 +53,6 @@ class WaypointUpdater(object):
         rospy.logdebug('Starting up node...');
         rospy.init_node('waypoint_updater', log_level=rospy.DEBUG)
 
-        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
-        rospy.Subscriber('/current_velocity', TwistStamped, self.twist_cb, queue_size=1)
-        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-
-        sub1 = rospy.Subscriber("/traffic_waypoint", TrafficWaypoint, self.traffic_cb)
-
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         self.SPEED_LIMIT = (rospy.get_param("/waypoint_loader/velocity") * KPH_TO_MPS) - SPEED_TOLERANCE;
@@ -70,6 +66,15 @@ class WaypointUpdater(object):
         self.last_velocity = 0;
 
         self.state = WaypointUpdater.State.STOP;
+
+        self.mutex = Lock()
+
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.twist_cb, queue_size=1)
+        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+
+        sub1 = rospy.Subscriber("/traffic_waypoint", TrafficWaypoint, self.traffic_cb)
+
 
         rospy.logdebug('Fully initialized, about to spin');
         rospy.spin()
@@ -130,64 +135,57 @@ class WaypointUpdater(object):
         '''
         :param msg: Current position of the vehicle of type PoseStamped
         '''
+        with self.mutex:
+            lane = Lane();
 
-        lane = Lane();
+            # Pass through the header info
+            lane.header = msg.header
 
-        # Pass through the header info
-        lane.header = msg.header
+            startwpindex = self.find_closest_waypoint(self.base_waypoints, msg.pose);
 
-        startwpindex = self.find_closest_waypoint(self.base_waypoints, msg.pose);
+            if (startwpindex < 0):
+                rospy.logerr('pose_cb: start index invalid');
+                return;
 
-        if (startwpindex < 0):
-            rospy.logerr('pose_cb: start index invalid');
+            for i in range (LOOKAHEAD_WPS):
+                lane.waypoints.append (self.base_waypoints[(startwpindex + i) % len(self.base_waypoints)]);
+                self.set_waypoint_velocity(lane.waypoints, i, self.SPEED_LIMIT);
+
+            numwpts = 0;
+            distanceToLight = 0;
+
+            if (self.lightindex < 0):
+                numwpts = LOOKAHEAD_WPS;
+                distanceToLight = 10000;
+            elif (startwpindex <= self.lightindex):
+                numwpts = self.lightindex - startwpindex;
+                distanceToLight = self.distance(lane.waypoints, 0, min(LOOKAHEAD_WPS, numwpts)-1);
+            else:
+                numwpts = self.lightindex + len(self.base_waypoints) - startwpindex;
+                distanceToLight = self.distance(lane.waypoints, 0, min(LOOKAHEAD_WPS, numwpts)-1);
+
+            self.update_state(distanceToLight);
+            self.execute_state(lane, numwpts);
+
+            #rospy.logwarn('state {} v0 {:+6.3f} numwpts {} start {} end {}'.format(
+            #    self.state, self.get_waypoint_velocity(lane.waypoints[0]),
+            #    numwpts, startwpindex, self.lightindex))
             return;
 
-        for i in range (LOOKAHEAD_WPS):
-            lane.waypoints.append (self.base_waypoints[(startwpindex + i) % len(self.base_waypoints)]);
-            self.set_waypoint_velocity(lane.waypoints, i, self.SPEED_LIMIT);
-
-        numwpts = 0;
-        distanceToLight = 0;
-
-        if (self.lightindex < 0):
-            numwpts = LOOKAHEAD_WPS;
-            distanceToLight = 10000;
-        elif (startwpindex <= self.lightindex):
-            numwpts = self.lightindex - startwpindex;
-            distanceToLight = self.distance(lane.waypoints, 0, min(LOOKAHEAD_WPS, numwpts)-1);
-        else:
-            numwpts = self.lightindex + len(self.base_waypoints) - startwpindex;
-            distanceToLight = self.distance(lane.waypoints, 0, min(LOOKAHEAD_WPS, numwpts)-1);
-
-        self.update_state(distanceToLight);
-        self.execute_state(lane, numwpts);
-
-        #rospy.logwarn('state {} v0 {:+6.3f} numwpts {} start {} end {}'.format(
-        #    self.state, self.get_waypoint_velocity(lane.waypoints[0]),
-        #    numwpts, startwpindex, self.lightindex))
-        return;
-
     def twist_cb(self, msg):
-        self.last_velocity = msg.twist.linear.x;
+        with self.mutex:
+            self.last_velocity = msg.twist.linear.x;
 
     def waypoints_cb(self, waypoints):
-        self.base_waypoints = waypoints.waypoints;
+        with self.mutex:
+            self.base_waypoints = waypoints.waypoints;
 
     def traffic_cb(self, msg):
         # This is the index of the nearest upcoming red light
         # Used in pose_cb
-        self.lightindex = msg.index;
-        self.lightstate = msg.state;
-
-        #if msg.state == TrafficWaypoint.RED:
-        #    state = "red"
-        #elif msg.state == TrafficWaypoint.YELLOW:
-        #    state = "yellow"
-        #elif msg.state == TrafficWaypoint.GREEN:
-        #    state = "green"
-        #else:
-        #    state = "unknown"
-        #rospy.logdebug('traffic light; waypoint: {}; state: {}'.format(msg.index, state))
+        with self.mutex:
+            self.lightindex = msg.index;
+            self.lightstate = msg.state;
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
