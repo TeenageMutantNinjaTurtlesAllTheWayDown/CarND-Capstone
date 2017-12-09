@@ -37,14 +37,13 @@ class Detector(object):
 
         self.mutex = Lock()
 
-        self.car_index = None
         self.state = TrafficLight.UNKNOWN
         self.state_count = 0
         self.last_stop_line = None
 
         self.shared_car_index = None
-        self.waypoints = None
-        self.stop_lines = None
+        self.shared_waypoints = None
+        self.shared_stop_lines = None
 
         self.pub = rospy.Publisher('/traffic_waypoint', TrafficWaypoint,
                                    queue_size=1)
@@ -57,11 +56,6 @@ class Detector(object):
 
         while not rospy.is_shutdown():
             rate.sleep()
-
-            with self.mutex:
-                if self.shared_car_index is None:
-                    continue
-                self.car_index = self.shared_car_index
 
             stop_line = self.get_stop_line()
             if stop_line is None:
@@ -85,17 +79,17 @@ class Detector(object):
 
     def pose_cb(self, msg):
         with self.mutex:
-            if self.waypoints is None:
+            if self.shared_waypoints is None:
                 return
 
-            if self.shared_car_index is None or self.shared_car_index > self.stop_lines[-1]:
+            if self.shared_car_index is None or self.shared_car_index > self.shared_stop_lines[-1]:
                 self.shared_car_index = 0
 
             current_dist = distance(msg.pose.position,
-                                    self.waypoints[self.shared_car_index])
+                                    self.shared_waypoints[self.shared_car_index])
 
-            for i in range(self.shared_car_index + 1, len(self.waypoints)):
-                dist = distance(msg.pose.position, self.waypoints[i])
+            for i in range(self.shared_car_index + 1, len(self.shared_waypoints)):
+                dist = distance(msg.pose.position, self.shared_waypoints[i])
                 if dist > current_dist:
                     break
                 current_dist = dist
@@ -109,17 +103,17 @@ class Detector(object):
             if len(stop_lines) == 0:
                 return
 
-            self.waypoints = []
+            self.shared_waypoints = []
             for waypoint in msg.waypoints:
                 position = waypoint.pose.pose.position
-                self.waypoints.append(Point(position.x, position.y))
+                self.shared_waypoints.append(Point(position.x, position.y))
 
-            self.stop_lines = []
+            self.shared_stop_lines = []
             for position in stop_lines:
                 index = self.get_closest_waypoint(
                     Point(position[0], position[1]))
-                self.stop_lines.append(index)
-            self.stop_lines.sort()
+                self.shared_stop_lines.append(index)
+            self.shared_stop_lines.sort()
 
     def get_closest_waypoint(self, point):
         """Identifies the closest path waypoint to the given position
@@ -128,17 +122,17 @@ class Detector(object):
             point: point to match a waypoint to
 
         Returns:
-            int: index of the closest waypoint in self.waypoints
+            int: index of the closest waypoint in self.shared_waypoints
 
         """
-        if self.waypoints is None or len(self.waypoints) == 0:
+        if self.shared_waypoints is None or len(self.shared_waypoints) == 0:
             rospy.logerr('No waypoints in traffic light detector')
             return -1
 
         closest_dist = sys.maxint
 
-        for i in range(len(self.waypoints)):
-            dist = distance(self.waypoints[i], point)
+        for i in range(len(self.shared_waypoints)):
+            dist = distance(self.shared_waypoints[i], point)
             if dist < closest_dist:
                 closest_dist = dist
                 closest_index = i
@@ -146,11 +140,15 @@ class Detector(object):
         return closest_index
 
     def get_stop_line(self):
-        for index in self.stop_lines:
-            if index > self.car_index:
-                return index
+        with self.mutex:
+            if self.shared_car_index is None:
+                return None
 
-        return None
+            for index in self.shared_stop_lines:
+                if index > self.shared_car_index:
+                    return index
+
+            return None
 
 
 class ImageDetector(Detector):
@@ -196,7 +194,7 @@ class DummyDetector(Detector):
 
     def traffic_cb(self, msg):
         with self.mutex:
-            if self.waypoints is None:
+            if self.shared_waypoints is None:
                 return
 
             if self.shared_traffic_lights is None:
@@ -222,15 +220,15 @@ class DummyDetector(Detector):
             tl_index = None
 
             for index in sorted(self.tl_map.keys()):
-                if index > self.car_index:
+                if index > self.shared_car_index:
                     tl_index = index
                     break
 
             if tl_index == None:
                 return TrafficLight.UNKNOWN
 
-            dist = distance(self.waypoints[tl_index],
-                            self.waypoints[self.car_index])
+            dist = distance(self.shared_waypoints[tl_index],
+                            self.shared_waypoints[self.shared_car_index])
             if dist > 150:
                 return TrafficLight.UNKNOWN
 
