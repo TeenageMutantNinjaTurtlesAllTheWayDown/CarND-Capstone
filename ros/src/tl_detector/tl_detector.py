@@ -97,6 +97,8 @@ class Detector(object):
 
     def waypoints_cb(self, msg):
         with self.mutex:
+            self.shared_car_index = None
+
             config_string = rospy.get_param('/traffic_light_config')
             stop_lines = yaml.load(config_string)['stop_line_positions']
 
