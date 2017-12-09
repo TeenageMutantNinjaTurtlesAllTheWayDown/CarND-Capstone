@@ -63,11 +63,14 @@ class DBWNode(object):
         self.controller = Controller(wheel_base, steer_ratio, 10, max_lat_accel,
                                      max_steer_angle, kp, kp_neg, kd, max_speed, vehicle_mass, accel_limit, decel_limit)
 
+        self.dbw = False
+        self.command = None
+        self.current_velocity = None
+
         # TODO: Subscribe to all the topics you need to
         self.dbw_sub = rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_changed)
         self.twist_sub = rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_command)
         self.current_vel_sub = rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_update)
-        self.dbw = False
         self.loop()
 
     def dbw_changed(self, new_dbw):
@@ -97,7 +100,7 @@ class DBWNode(object):
             dt = current_time - last_time
             last_time = current_time
 
-            if self.dbw:
+            if self.dbw and self.command is not None and self.current_velocity is not None:
                 throttle, brake, steer = self.controller.control(self.command, self.current_velocity, dt)
                 # rospy.logwarn('T {:+6.3f}, B {:+6.3f}, S {:+6.3f}'.format(throttle,brake,steer))
                 self.publish(throttle, brake, steer)
