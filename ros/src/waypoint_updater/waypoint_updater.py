@@ -167,6 +167,9 @@ class WaypointUpdater(object):
                 numwpts = self.lightindex + len(self.base_waypoints) - startwpindex;
                 distanceToLight = self.distance(lane.waypoints, 0, min(LOOKAHEAD_WPS, numwpts)-1);
 
+            if (startwpindex > self.lightindex):
+                self.lightstate = TrafficWaypoint.UNKNOWN;
+
             self.update_state(distanceToLight);
             self.execute_state(lane, numwpts);
 
