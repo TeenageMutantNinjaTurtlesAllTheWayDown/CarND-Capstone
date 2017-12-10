@@ -95,8 +95,11 @@ class WaypointUpdater(object):
 
         elif (self.state == WaypointUpdater.State.STOP):
             lightIsGreen = (self.lightstate == TrafficWaypoint.GREEN);
+            lightIsUnknown = (self.lightstate == TrafficWaypoint.UNKNOWN);
 
-            if (failedToDetectLight or lightIsGreen):
+            if (failedToDetectLight):
+                pass;
+            elif (lightIsGreen or lightIsUnknown):
                 self.state = WaypointUpdater.State.GO;
 
         else:
@@ -155,7 +158,7 @@ class WaypointUpdater(object):
             distanceToLight = 0;
 
             if (self.lightindex < 0):
-                numwpts = LOOKAHEAD_WPS;
+                numwpts = 0;
                 distanceToLight = 10000;
             elif (startwpindex <= self.lightindex):
                 numwpts = self.lightindex - startwpindex;

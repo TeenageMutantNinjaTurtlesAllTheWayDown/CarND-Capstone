@@ -62,8 +62,6 @@ class Detector(object):
                 continue
 
             state = self.get_traffic_light_state()
-            if state == TrafficLight.UNKNOWN:
-                continue
 
             if self.state != state:
                 self.state_count = 0
