@@ -5,8 +5,6 @@ import tf
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from styx_msgs.msg import Lane, TrafficWaypoint, Waypoint
 
-from enum import Enum
-
 import math
 
 from threading import Lock
@@ -42,12 +40,12 @@ def angleDiff(a, b):
         diff += math.pi * 2.0;
     return diff - math.pi;
 
+def enum(**enums):
+    return type('Enum', (), enums);
 
 class WaypointUpdater(object):
 
-    class State(Enum):
-        STOP = 0
-        GO = 1
+    State = enum(STOP=0, GO=1);
 
     def __init__(self):
         rospy.logdebug('Starting up node...');
