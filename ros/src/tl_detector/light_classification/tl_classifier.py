@@ -14,8 +14,8 @@ sys.path.append(os.path.dirname(__file__))
 from object_detection.utils import label_map_util  # isort:skip
 
 THRESHOLD = 0.5
-MODEL_URL = 'https://github.com/TeenageMutantNinjaTurtlesAllTheWayDown/CarND-Capstone/releases/download/model/model.tar'
-MODEL_SHA256 = '255bdda11f7fe7f72340bfec0ce3fc2db7f6d941368b78281b64ce2420142a0d'
+MODEL_URL = 'https://github.com/TeenageMutantNinjaTurtlesAllTheWayDown/CarND-Capstone/releases/download/model-20171230/model.tar'
+MODEL_SHA256 = '94bb1600a5ae1c142e382432f09ac6656a42a84b7750f55e1b0692645c6bb1fc'
 
 
 def download_model(variant):
